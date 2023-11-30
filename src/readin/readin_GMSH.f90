@@ -245,7 +245,7 @@ DO iFile=1,nMeshFiles
         found=.FALSE.
         ! Mapping of gmsh boundary counter to boundary names given by user in hopr.ini
         DO i=1,nUserDefinedBoundaries
-          IF(INDEX(TRIM(BCName),TRIM(BoundaryName(i))).NE.0) THEN
+          IF(INDEX(TRIM(BCName),TRIM(BoundaryName(i))).NE.0) THEN ! Find boundary index != 0 -> physical name == BoundaryName
             found=.TRUE. 
             BCFound(i)=.TRUE.
             WRITE(*,*)'BC found: ',TRIM(BCName),' -->  mapped to: ',TRIM(BoundaryName(i)), ' with index: ', i
@@ -308,7 +308,14 @@ DO iFile=1,nMeshFiles
         ! Format: surfaceTag minX minY minZ maxX maxY maxZ numPhysicalTags physicalTag numBoundingCurves curveTag
         ! Skipping the surfaceTag (equivalent to the i-variable) and the bounding box; nBCs_Entity defines the number of physicalTag(s);
         ! skipping the following bounding curves
-        READ(104,*) dummy, dummy_array(1:6), nBCs_Entity, BCTag, dummy, dummy_array(1:dummy)
+        READ(104,*) tag, coord(1:6), nBCs_Entity
+        IF(nBCs_Entity.NE.0) THEN
+          BACKSPACE(104)
+          READ(104,*) dummy, dummy_array(1:6), nBCs_Entity, BCTag, dummy, dummy_array(1:dummy)
+          ! WRITE(*, *) tag, coord(1:6), nBCs_Entity, BCTag, dummy, dummy_array(1:dummy)
+        ELSE
+          CYCLE
+        END IF
         ! Currently a surface cannot belong to multiple BCs
         IF(nBCs_Entity.GT.1) CALL abort(__STAMP__, 'ERROR: Surface is overdefined with more than one BC!')
         ! Compare the BCTag of the surface with the BCTag of the BC and map surface index to BC index
@@ -318,8 +325,6 @@ DO iFile=1,nMeshFiles
           END IF
         END DO
       END DO
-      ! Every surface has to be associated with a BC
-      IF(ANY(MapEntityToBC.EQ.-1)) CALL abort(__STAMP__, 'ERROR: Surface is not associated with a BC!')
     END IF
     ! Skip volume definitions
     DO i=1,nVolumes
@@ -350,8 +355,13 @@ DO iFile=1,nMeshFiles
         iNode = iNode + 1
       END DO
     END DO
-    s=TRYREAD(104,'$EndNodes')
+    ! Skip volumes without nodes
+    DO 
+      IF(TRYREAD(104,'$EndNodes',.FALSE.)) EXIT
+      WRITE(*,*) 'Skipped empty volume!'
+    END DO
 
+    
     ! Initialize BCList pointer
     ALLOCATE(BCList(nNodes))
     DO i=1,nNodes
@@ -400,9 +410,9 @@ DO iFile=1,nMeshFiles
 
   IF(elemCount.LT.1) CALL abort(__STAMP__,'ERROR gmsh read-in: No 2D/3D elements found!')
   ! Assign Boundary Conditions
-  DO iElem=1,elemCount
+  DO iElem=1,elemCount ! Iterate over elements
     aSide=>Elems(iElem)%ep%firstSide
-    DO WHILE(ASSOCIATED(aSide))
+    DO WHILE(ASSOCIATED(aSide)) ! Iterate over sides
       !get minimum index of side
       tempNodeInds=HUGE(1337)
       DO i=1,aSide%nNodes
@@ -415,7 +425,8 @@ DO iFile=1,nMeshFiles
       DO WHILE(ASSOCIATED(aBCTemp))
         isBCSide=.TRUE.
         DO i=1,aSide%nNodes
-          IF(COUNT(aBCTemp%nodeInds.EQ.tempNodeInds(i)).NE.1)THEN
+          ! Check if all primary nodes are identical
+          IF(COUNT(aBCTemp%nodeInds.EQ.tempNodeInds(i)).NE.1)THEN 
             isBCSide=.FALSE.
             EXIT
           END IF
