@@ -308,7 +308,7 @@ DO iFile=1,nMeshFiles
         ! Format: surfaceTag minX minY minZ maxX maxY maxZ numPhysicalTags physicalTag numBoundingCurves curveTag
         ! Skipping the surfaceTag (equivalent to the i-variable) and the bounding box; nBCs_Entity defines the number of physicalTag(s);
         ! skipping the following bounding curves
-        READ(104,*) tag, coord(1:6), nBCs_Entity
+        READ(104,*) dummy, dummy_array(1:6), nBCs_Entity
         IF(nBCs_Entity.NE.0) THEN
           BACKSPACE(104)
           READ(104,*) dummy, dummy_array(1:6), nBCs_Entity, BCTag, dummy, dummy_array(1:dummy)
